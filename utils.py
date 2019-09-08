@@ -21,6 +21,7 @@ class Table:
 
     @classmethod
     def transform_column_parameters_to_sql(cls):
+        from basic_orm import Session
         columns = cls.get_column_names_and_values()
         sql_table_details = []
         for column, value in columns:
@@ -45,11 +46,9 @@ class Table:
                 if value.get('type') == "integer":
                     sql_attrs.append(COLUMN_PARAMS['auto_add'])
 
-            if value.get('foreign_key'): # temp disabled
+            if value.get('foreign_key'):
                 name = cls.get_table_name()
-                child_class_name = [cls.__name__ for cls in Table.__subclasses__()]
-                reference_table_name = [cls.__name__ for cls in child_class_name.__subclasses__() if cls.__name__ != name]
-                print(reference_table_name)
+                reference_table_name = [cls.__name__ for cls in Session.__subclasses__() if cls.__name__ != name]
                 foreign_key_sql = ", FOREIGN KEY(%s) REFERENCES %s(%s)" % \
                                   (column, reference_table_name[0], value['foreign_key'])
                 sql_attrs.append(foreign_key_sql)

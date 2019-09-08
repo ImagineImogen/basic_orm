@@ -4,7 +4,9 @@ from utils import Table
 DATABASE_CONNECTION = sqlite3.connect('temporary.db')
 CURSOR = DATABASE_CONNECTION.cursor()
 
+
 class Session (Table):
+
 
     @classmethod
     def create_table(cls):
@@ -18,26 +20,21 @@ class Session (Table):
 
     @classmethod
     def delete_table(cls):
-        try:
-            delete_tab = 'DROP TABLE IF EXISTS %s' % (cls.get_table_name())
-            DATABASE_CONNECTION.execute(delete_tab)
-            print("A table was deleted")
-        except:
-            pass
-            #UNIQUE constraint failed - for foreign keys to be done
+        delete_tab = 'DROP TABLE IF EXISTS %s' % (cls.get_table_name())
+        DATABASE_CONNECTION.execute(delete_tab)
+        print("A table was deleted")
 
     @classmethod
-    def add(cls, *args):
+    def add(cls, *args): #corresponds to INSERT in raw SQL
         column_names = [column_name for column_name in cls.__dict__.keys() if not column_name.startswith("__")]
         columns_to_insert_to = [i for i in args[0].keys() if i in column_names]
 
         query = 'INSERT INTO %s %s VALUES (%s)' % \
-                (cls.get_table_name(), tuple(columns_to_insert_to), ", ".join(['?'] * len(args[0].values())))
+                (cls.get_table_name(), tuple(columns_to_insert_to), " ,".join(['?'] * len(args[0].values())))
         values = []
 
         for i in range(len(args[0].items())):
             values.append((args[0][tuple(columns_to_insert_to)[i]]))
-
         CURSOR.execute(query, tuple(values))
         DATABASE_CONNECTION.commit()
 
@@ -48,7 +45,7 @@ class Session (Table):
             columns_to_update = [column for column in cls.__dict__.keys() if not column.startswith("__")]
             columns = [col for col in column_names_to_update if col in columns_to_update]
             real_values = []
-            for i in (columns):
+            for i in columns:
 
                 real_values.append(args[0].get(i))
             if len(args) == 1:
@@ -90,12 +87,18 @@ class Session (Table):
 
 
     @classmethod
-    def select(cls, *args): #SELECT with foreign key?
+    def select(cls, *args):
         columns_to_select = [column for column in cls.__dict__.keys() if not column.startswith("__")]
-        print(cls.get_column_names_and_values())
-
-        if not args:
-            select_all = 'SELECT * FROM %s' % (cls.get_table_name())
+        fields = cls.get_column_names_and_values()
+        if not args: #SELECT *
+            for k, v in fields:
+                if 'foreign_key' in v: #Autojoin
+                    name = cls.get_table_name()
+                    another_table_name = [cls.__name__ for cls in Session.__subclasses__() if cls.__name__ != name]
+                    select_all = 'SELECT * FROM %s INNER JOIN %s ON %s.%s=%s.%s' % \
+                                 (name, another_table_name[0], another_table_name[0], v['foreign_key'], name, k)
+                else:
+                    select_all = 'SELECT * FROM %s' % (cls.get_table_name())
             CURSOR.execute(select_all)
             rows = CURSOR.fetchall()
             for row in rows:
@@ -144,7 +147,6 @@ class Session (Table):
     def close():
         CURSOR.close()
         DATABASE_CONNECTION.close()
-
 
 
 

@@ -16,6 +16,9 @@ class User(Session):
     id = {'type': 'integer', "auto_add": True, "primary_key": True}
     name = {"type": "string", "length": 50}
     surname = {"type": "string", "length": 70}
+    city = {"type" : "string", "length" : 50}
+    city.update({'foreign_key' : 'city}) 
+    #foreign key to another table column
 
 ```
 
@@ -33,7 +36,7 @@ User.select({"id": 5,"name": "Alicia"})
 User.select("surname", {"id": 1,"name": "Romain"})
 ```
 
-Be sure to close the connection:
+Be sure to close the connection when you no longer intend to use the ORM:
  
 ```
 User.close()
