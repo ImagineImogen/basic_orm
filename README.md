@@ -35,6 +35,7 @@ User.select('id', 'name')
 User.select({"id": 5,"name": "Alicia"})
 User.select("surname", {"id": 1,"name": "Romain"})
 ```
+For more examples please check the example.py file
 
 Be sure to close the connection when you no longer intend to use the ORM:
  

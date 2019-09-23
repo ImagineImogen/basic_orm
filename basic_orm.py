@@ -1,12 +1,71 @@
 import sqlite3
-from utils import Table
+
 
 DATABASE_CONNECTION = sqlite3.connect('temporary.db')
 CURSOR = DATABASE_CONNECTION.cursor()
 
+COLUMN_PARAMS = {
+    "primary_key": "PRIMARY KEY",
+    "foreign_key": "FOREIGN KEY",
+    "string": "VARCHAR",
+    "integer": "INTEGER",
+    "required": "NOT NULL",
+    "auto_add": "AUTOINCREMENT"
+}
 
-class Session (Table):
 
+class Table:
+    @classmethod
+    def get_table_name(cls):
+        try:
+            return cls.__tablename__
+        except AttributeError:
+            table_name = cls.__name__ + "s"
+            return table_name.lower()
+
+    @classmethod
+    def transform_column_parameters_to_sql(cls):
+        columns = cls.get_column_names_and_values()
+        sql_table_details = []
+        for column, value in columns:
+            sql_attrs = []
+
+            if value.get('type'):
+                sql_attrs.append(COLUMN_PARAMS[value['type']])
+
+            if value.get('length'):
+                if value.get('auto_add'):
+                    continue
+                length_with_brackets = "(%s)" % str(value['length'])
+                sql_attrs.append(length_with_brackets)
+
+            if value.get('required'):
+                sql_attrs.append(COLUMN_PARAMS['required'])
+
+            if value.get('primary_key'):
+                sql_attrs.append(COLUMN_PARAMS['primary_key'])
+
+            if value.get('auto_add'):
+                if value.get('type') == "integer":
+                    sql_attrs.append(COLUMN_PARAMS['auto_add'])
+
+            if value.get('foreign_key'):
+                name = cls.get_table_name()
+                reference_table_name = [cls.__name__ for cls in Table.__subclasses__() if cls.__name__ != name]
+                foreign_key_sql = ", FOREIGN KEY(%s) REFERENCES %s(%s)" % \
+                                  (column, reference_table_name[0].lower(), value['foreign_key'])
+                sql_attrs.append(foreign_key_sql)
+
+            sql_column_details = '%s %s' % (column, " ".join(sql_attrs))
+            sql_table_details.append(sql_column_details)
+
+        return ", ".join(sql_table_details)
+
+    @classmethod
+    def get_column_names_and_values(cls):
+        column_parameters = [(k, v) for k, v in cls.__dict__.items() if not k.startswith("__")]
+
+        return column_parameters
 
     @classmethod
     def create_table(cls):
@@ -89,20 +148,26 @@ class Session (Table):
     @classmethod
     def select(cls, *args):
         columns_to_select = [column for column in cls.__dict__.keys() if not column.startswith("__")]
+        val_all = [v for v in cls.__dict__.values()]
+        dict1 = {}
         fields = cls.get_column_names_and_values()
+        for _ in range(2, len(val_all)-1):
+            dict1.update(val_all[_])
         if not args: #SELECT *
-            for k, v in fields:
-                if 'foreign_key' in v: #Autojoin
-                    name = cls.get_table_name()
-                    another_table_name = [cls.__name__ for cls in Session.__subclasses__() if cls.__name__ != name]
-                    select_all = 'SELECT * FROM %s INNER JOIN %s ON %s.%s=%s.%s' % \
-                                 (name, another_table_name[0], another_table_name[0], v['foreign_key'], name, k)
-                else:
-                    select_all = 'SELECT * FROM %s' % (cls.get_table_name())
-            CURSOR.execute(select_all)
-            rows = CURSOR.fetchall()
-            for row in rows:
-                print(row)
+            if 'foreign_key' in dict1: #Autojoin
+                name = cls.get_table_name()
+                print(name)
+                another_table_name = [cls.__name__ for cls in Table.__subclasses__() if cls.__name__.lower() != name]
+
+                for k, v in fields:
+                    if 'foreign_key' in v:
+                        select_all = 'SELECT * FROM %s INNER JOIN %s ON %s.%s=%s.%s' % \
+                                 ((name, another_table_name[0].lower(), name, k,  another_table_name[0].lower(),  dict1['foreign_key']))
+                        cls.sql_execute(select_all)
+            else:
+                select_all = 'SELECT * FROM %s' % (cls.get_table_name())
+                cls.sql_execute(select_all)
+
 
         elif type(args[-1]) is str:
             select_by_columns='SELECT %s FROM %s' % (', '.join(args),cls.get_table_name())
@@ -139,14 +204,18 @@ class Session (Table):
                     rows = CURSOR.fetchall()
                     for row in rows:
                         print(row)
-                    self.cursor_for_select(query, values)
+
 
                 return "Such column doesn't exist, please check"
+
+    @classmethod
+    def sql_execute(self, select_all):
+        CURSOR.execute(select_all)
+        rows = CURSOR.fetchall()
+        for row in rows:
+            print(row)
 
     @staticmethod
     def close():
         CURSOR.close()
         DATABASE_CONNECTION.close()
-
-
-
